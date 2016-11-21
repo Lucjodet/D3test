@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+#sidebar {
+  font: 18px geneva;
+  color: blue;
+  background-color : transparent;
+}
+
+#filterContainer {
+  font: 14px geneva;
+  color: red;
+}
+
+
+/*.link {
+  stroke: #777;
+  stroke-opacity: 0.3;
+  stroke-width: 1.5px;
+}*/
+
+/*.node circle {
+  fill: #ccc;
+  stroke: #000;
+  stroke-width: 1.5px;
+}*/
+
+.node text {
+  display: none;
+}
+
+.node:hover circle {
+  fill: #000;
+  opacity: 0.2;
+}
+
+.node:hover text {
+  display: inline;
+  fill: #29ABE2;
+    font: 16px geneva;
+}
+
+.cell {
+  fill: none;
+  pointer-events: all;
+}
+
+
+#container {
+  position: relative;
+}
+#sidebar,
+#graphContainer {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+#sidebar {
+  z-index: 10;
+}
+
+</style>
+
+<body>
+<div id="container">
+<div id="graphContainer" class="graphContainer">
+<div id="sidebar">
+  <div class="item-group">
+          <label class="item-label">Filtrer par type de lien:</label>
+          <span id="filterContainer" class="filterContainer checkbox-interaction-group"></span>
+    </div>
+  </div>
+</div>
+</div>
+
+<svg width="960" height="600"></svg>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.8/jquery.min.js"></script>
+<script>
+
+/*
+var width = window.innerWidth,
+    height = window.innerHeight
+*/
+
+var svg = d3.select("svg"),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+var color = d3.scaleOrdinal(d3.schemeCategory20);
+          //  .range(["#244D65", "#30B498", "#FA3F70", "#F5A623", "#F2E546", "#29ABE2", "#490B7E", "#95A5A6"]);
+
+var colorlinks = d3.scaleOrdinal()
+           .range(["#F9690E", "#1BA39C", "#30c514", "#9321ff", "#ffff00"]);
+
+
+/*v3
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+    */
+
+
+/*V3
+    .gravity(0.2)
+    .linkDistance(150)
+    .charge(-600)
+    .friction(0.7)
+    .size([width, height]);
+
+var voronoi = d3.voronoi()
+  .x(function(d) { return d.x; })
+  .y(function(d) { return d.y; })
+  .clipExtent([[0, 0], [width, height]]);
+*/
+
+    d3.json("https://testd3js.bubbleapps.io/api/1.0/obj/node?api_token=5ac9528a4b1c10c0f8e8412b803a1d57", function(error, nodedata) {
+    d3.json("https://testd3js.bubbleapps.io/api/1.0/obj/link?api_token=5ac9528a4b1c10c0f8e8412b803a1d57", function(error, linksdata) {
+      if (error) throw error;
+
+      nodedata = JSON.parse(JSON.stringify(nodedata).split('"nodename_text":').join('"name":'));
+      nodedata = JSON.parse(JSON.stringify(nodedata).split('"relation_text":').join('"group":'));
+      nodedata = JSON.parse(JSON.stringify(nodedata).split('"results":').join('"nodes":'));
+      linksdata = JSON.parse(JSON.stringify(linksdata).split('"source_text":').join('"source":'));
+      linksdata = JSON.parse(JSON.stringify(linksdata).split('"destination_text":').join('"target":'));
+      linksdata = JSON.parse(JSON.stringify(linksdata).split('"type_text":').join('"type":'));
+      linksdata = JSON.parse(JSON.stringify(linksdata).split('"results":').join('"links":'));
+
+      var nodesclean = nodedata.response.nodes.slice();
+      var linksclean = linksdata.response.links.slice();
+
+/*
+      ///mapping des liens en fonction de l'index des nodes
+      var map = new Map();
+
+      for (var x = 0; x < nodesclean.length; x++) {
+      nodesclean[x].index = x;
+      map.set(nodesclean[x].name, x);
+      }
+
+      for (var x = 0; x < linksclean.length; x++) {
+      linksclean[x].target = map.get(linksclean[x].target);
+      linksclean[x].source = map.get(linksclean[x].source);
+      }
+*/
+
+      var nodescleaner = { "nodes" : nodesclean };
+      var linkscleaner = { "links" : linksclean };
+
+      var graph = $.extend(nodescleaner, linkscleaner);
+      console.log(graph);
+
+/*v3
+force
+    .nodes(json.nodes)
+    .links(json.links)
+    .start();
+*/
+      var simulation = d3.forceSimulation()
+          .force("link", d3.forceLink().id(function(d) { return d.id; }))
+          .force("charge", d3.forceManyBody())
+          .force("center", d3.forceCenter(width / 2, height / 2));
+
+      var link = svg.append("g")
+            .attr("class", "links")
+          .selectAll("line")
+          .data(graph.links)
+          .enter().append("line")
+            .attr("stroke-width", function(d) { return Math.sqrt(d.value); });
+
+        var node = svg.append("g")
+            .attr("class", "nodes")
+          .selectAll("circle")
+          .data(graph.nodes)
+          .enter().append("circle")
+            .attr("r", 5)
+            .attr("fill", function(d) { return color(d.group); })
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.append("title")
+            .text(function(d) { return d.name; });
+
+        simulation
+            .nodes(graph.nodes)
+            .on("tick", ticked);
+
+        simulation.force("link")
+            .links(graph.links);
+
+        function ticked() {
+          link
+              .attr("x1", function(d) { return d.source.x; })
+              .attr("y1", function(d) { return d.source.y; })
+              .attr("x2", function(d) { return d.target.x; })
+              .attr("y2", function(d) { return d.target.y; });
+
+          node
+              .attr("cx", function(d) { return d.x; })
+              .attr("cy", function(d) { return d.y; });
+        }
+      });
+
+      function dragstarted(d) {
+        if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+
+      function dragged(d) {
+        d.fx = d3.event.x;
+        d.fy = d3.event.y;
+      }
+
+      function dragended(d) {
+        if (!d3.event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+
+
+//calculer le nombre de lien de chaque node
+//  graph.links.forEach(function(link){
+      // initialize a new property on the node
+//      if (!link.source["linkCount"]) link.source["linkCount"] = 0;
+//      if (!link.target["linkCount"]) link.target["linkCount"] = 0;
+    // count it up
+//    link.source["linkCount"]++;
+//    link.target["linkCount"]++;
+//      });
+
+///  var link = svg.selectAll(".link")
+///      .data(json.links)
+///    .enter().append("line")
+///      .attr("class", "link")
+///      .style("stroke", function(d) { return colorlinks(d.type); })
+///      .style("stroke-width", "3")
+///      .style("marker-end",  "url(#Knowledge)") // Modified line ;
+
+///  var node = svg.selectAll(".node")
+///      .data(json.nodes)
+///    .enter().append("g")
+///      .attr("class", "node")
+///      .call(force.drag);
+
+///  var circle = node.append("circle")
+///      .attr("class", "node")
+///      .attr("r", (function(d){return d.linkCount ? ((40*Math.log(d.linkCount+3))/(Math.log(nodesclean.length+2))^7) : 2; })) //60/Math.log(nodesclean.length+2
+///      .style("fill", function(d) { return color(d.group); })
+///      .style("stroke", "black")
+///      .style("stroke-width", "3");
+
+///  var label = node.append("text")
+///      .attr("dy", ".35em")
+///      .text(function(d) { return d.name; });
+
+///  var cell = node.append("path")
+///      .attr("class", "cell");
+
+///  force.on("tick", function() {
+///    cell
+///        .data(voronoi(json.nodes))
+///        .attr("d", function(d) { return d.length ? "M" + d.join("L") : null; });
+
+///    link
+  ///      .attr("x1", function(d) { return d.source.x; })
+///        .attr("y1", function(d) { return d.source.y; })
+///        .attr("x2", function(d) { return d.target.x; })
+///        .attr("y2", function(d) { return d.target.y; });
+
+///    circle
+///        .attr("cx", function(d) { return d.x; })
+///        .attr("cy", function(d) { return d.y; });
+
+///    label
+///        .attr("x", function(d) { return d.x + 8; })
+///        .attr("y", function(d) { return d.y; });
+
+//créer les fléches pour les liens
+/*    svg.append("defs").selectAll("marker")
+        .data(["Knowledge", "Business"])
+      .enter().append("marker")
+        .attr("id", function(d) { return d; })
+        .attr("viewBox", "0 -5 10 10")
+        .attr("refX", 40)
+        .attr("refY", 0)
+        .attr("markerWidth", 4)
+        .attr("markerHeight", 4)
+        .attr("orient", "auto")
+      .append("path")
+        .attr("d", "M0,-5L10,0L0,5 L10,0 L0, -5")
+        .style("stroke", "#000000")
+        .style("opacity", "0.6");
+
+// Method to create the filter
+      createFilter();
+
+// Method to create the filter, generate checkbox options on fly
+function createFilter() {
+    d3.select(".filterContainer").selectAll("span")
+      .data(["Knowledge", "Business"]) //changer si plus de catégories
+      .enter()
+      .append("span")
+      .attr("class", "checkbox-container")
+      .append("label")
+      .each(function (d) {
+            // create checkbox for each data
+            d3.select(this).append("input")
+              .attr("type", "checkbox")
+              .attr("id", function (d) {
+                  return "chk_" + d;
+               })
+              .attr("checked", true)
+              .on("click", function (d, i) {
+                // register on click event
+                  var lVisibility = this.checked ? "visible" : "hidden";
+                  filterGraph(d, lVisibility);
+               })
+            d3.select(this).append("span")
+                .text(function (d) {
+                    return d;
+                });
+    });
+    $("#sidebar").show();
+}
+
+// Method to filter graph
+function filterGraph(aType, aVisibility) {
+// change the visibility of the connection link
+link.style("visibility", function (o) {
+    var lOriginalVisibility = $(this).css("visibility");
+    return o.type === aType ? aVisibility : lOriginalVisibility;
+    });
+
+// change the visibility of the node
+// if all the links with that node are invisibile, the node should also be invisible
+// otherwise if any link related to that node is visibile, the node should be visible
+circle.style("visibility", function (o, i) {
+    var lHideNode = true;
+    link.each(function (d, i) {
+        if (d.source === o || d.target === o) {
+            if ($(this).css("visibility") === "visible") {
+                lHideNode = false;
+                // we need show the text for this circle
+                d3.select(d3.selectAll(".nodeText")[0][i]).style("visibility", "visible");
+                return "visible";
+            }
+        }
+    });
+    if (lHideNode) {
+        // we need hide the text for this circle
+        d3.select(d3.selectAll(".nodeText")[0][i]).style("visibility", "hidden");
+        return "hidden";
+      }*/
+
+      });
+
+</script>
