@@ -1,0 +1,69 @@
+{
+  "response": {
+    "results": [
+      {
+        "source_text": "Node1",
+        "relation_text": "Link1",
+        "destination_text": "Node2",
+        "name_text": "LinkName1",
+        "type_text": "TypeA",
+        "Created Date": "2018-02-17T18:21:10.069Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:10.069Z",
+        "_id": "1518891670069x131103075109422200",
+        "_type": "custom.node"
+      },
+      {
+        "source_text": "Node1",
+        "relation_text": "Link2",
+        "destination_text": "Node3",
+        "name_text": "LinkName2",
+        "type_text": "TypeB",
+        "Created Date": "2018-02-17T18:21:10.069Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:10.069Z",
+        "_id": "1518891670069x131103075109422200",
+        "_type": "custom.node"
+      },
+      {
+        "source_text": "Node1",
+        "relation_text": "Link2",
+        "destination_text": "Node3",
+        "name_text": "LinkName3",
+        "type_text": "TypeC",
+        "Created Date": "2018-02-17T18:21:10.069Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:10.069Z",
+        "_id": "1518891670069x131103075109422200",
+        "_type": "custom.node"
+      },
+      {
+        "source_text": "Node1",
+        "relation_text": "Link2",
+        "destination_text": "Node3",
+        "name_text": "LinkName4",
+        "type_text": "TypeA",
+        "Created Date": "2018-02-17T18:21:10.069Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:10.069Z",
+        "_id": "1518891670069x131103075109422200",
+        "_type": "custom.node"
+      },
+      {
+        "source_text": "Node2",
+        "relation_text": "Link3",
+        "destination_text": "Node1",
+        "name_text": "LinkName5",
+        "type_text": "TypeB",
+        "Created Date": "2018-02-17T18:21:10.069Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:10.069Z",
+        "_id": "1518891670069x131103075109422200",
+        "_type": "custom.node"
+      }
+    ],
+    "cursor": 0,
+    "count": 2,
+    "remaining": 0
+  }
+}

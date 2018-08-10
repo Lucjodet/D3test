@@ -1,0 +1,36 @@
+{
+  "response": {
+    "results": [
+      {
+        "nodename_text": "Node1",
+        "relation_text": "Relationship1",
+        "Created Date": "2018-02-17T18:21:10.069Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:10.069Z",
+        "_id": "1518891670069x131103075109422200",
+        "_type": "custom.node"
+      },
+      {
+        "nodename_text": "Node2",
+        "relation_text": "Relationship2",
+        "Created Date": "2018-02-17T18:21:22.156Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:22.156Z",
+        "_id": "1518891682156x190687113208696260",
+        "_type": "custom.node"
+      },
+      {
+        "nodename_text": "Node3",
+        "relation_text": "Relationship3",
+        "Created Date": "2018-02-17T18:21:22.156Z",
+        "Created By": "1518789097369x683465919224545400",
+        "Modified Date": "2018-02-17T18:21:22.156Z",
+        "_id": "1518891682156x190687113208696260",
+        "_type": "custom.node"
+      }
+    ],
+    "cursor": 0,
+    "count": 2,
+    "remaining": 0
+  }
+}

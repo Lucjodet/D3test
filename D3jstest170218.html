@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<body>
+<div id="container">
+  <div id="topbar">
+            <label class="item-label">Link type:</label>
+            <span id="filterContainer" class="filterContainer checkbox-interaction-group"></span>
+  </div>
+  <br />
+  <div id="topbar2">
+            <label class="item-label">Node Names</label>
+            <span id="filterContainer2" class="filterContainer2 checkbox-interaction-group"></span>
+  </div>
+  <svg id="svg" width="960" height="600"></svg>
+</div>
+</body>
+<style>
+
+#topbar {
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+}
+
+#topbar2 {
+    width: 100%;
+    position: absolute;
+    top: 1;
+    left: 0;
+    z-index: 11;
+}
+
+#svg {
+  width : 100%;
+  height : 100%;
+  position : absolute;
+  top: 0;
+  left: 0;
+}
+
+#container {
+  font: 14px geneva;
+  color: black;
+  background-color : transparent;
+}
+
+#filterContainer {
+  font: 14px geneva;
+}
+
+#filterContainer2 {
+  font: 14px geneva;
+}
+
+.link {
+  fill: none;
+  stroke-width: 2px;
+}
+
+</style>
+
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.8/jquery.min.js"></script>
+<script>
+//designers parameters (@Laura)
+var svg = d3.select("svg"),
+	width = window.innerWidth,
+	height = window.innerHeight,
+	radius = 20;					//définit une bande de sécurité autour des bords, où les bulles ne peuvent pénétrer
+
+var node_types = ["Main", "Client", "Supplier", "Contractor", "Competitor", "Partner", "Investor", "Shareholder", "Regulator", "Potential"],
+	node_color = d3.scaleOrdinal().range(["#244D65", "#30B498", "#FA3F70", "#F5A623", "#F2E546", "#29ABE2", "#490B7E", "#95A5A6", "#F9690E", "#1BA39C"]),
+	node_maxsize = 50,
+	node_repulsion = 1*node_maxsize,
+	nodetext_shift = 0.8*node_maxsize,
+	velocity_decay = 0.6;
+
+var link_color = d3.scaleOrdinal().range(["#F9690E", "#1BA39C", "#30c514", "#9321ff", "#244D65", "#FA3F70"]),
+	link_length = 1.5*node_maxsize,	//longuer des liens (non linéaire)
+	charge = -10;					// force de répulsion entre 2 nodes
+
+var marker_size = 7,				//marker = arrow
+	marker_x = 35,
+	marker_y = -2,
+	marker_opacity = 1;
+
+var node_opacity_initial = 0.8,
+	node_opacity_selected = 1,
+	node_opacity_others = 0.2;
+
+/*d3.json("https://api.myjson.com/bins/135y8p", function(error, nodedata) {
+d3.json("https://api.myjson.com/bins/1fo1y1", function(error, linksdata) {*/
+
+
+//data imported
+d3.json("Data/TestNodes.json", function(error, nodedata) {
+d3.json("Data/TestEdges.json", function(error, linksdata) {
+  if (error) throw error;
+
+    nodedata = JSON.parse(JSON.stringify(nodedata).split('"nodename_text":').join('"name":'));
+    nodedata = JSON.parse(JSON.stringify(nodedata).split('"relation_text":').join('"group":'));
+    nodedata = JSON.parse(JSON.stringify(nodedata).split('"results":').join('"nodes":'));
+    linksdata = JSON.parse(JSON.stringify(linksdata).split('"source_text":').join('"source":'));
+    linksdata = JSON.parse(JSON.stringify(linksdata).split('"destination_text":').join('"target":'));
+    linksdata = JSON.parse(JSON.stringify(linksdata).split('"type_text":').join('"type":'));
+    linksdata = JSON.parse(JSON.stringify(linksdata).split('"results":').join('"links":'));
+    linksdata = JSON.parse(JSON.stringify(linksdata).split('"name_text":').join('"name":'));
+
+	//console.log(linksdata);
+	var link_types = linksdata.response.links.map(function(i) {
+		return i.type;
+	});
+	//console.log(link_types);
+	var unique = link_types.filter(function(elem, index, self) {
+    return index == self.indexOf(elem);
+	});
+
+	link_types = unique;
+
+    var nodesclean = nodedata.response.nodes.slice();
+    var linksclean = linksdata.response.links.slice();
+    var nodescleaner = { "nodes" : nodesclean };
+    var linkscleaner = { "links" : linksclean };
+    var graph = $.extend(nodescleaner, linkscleaner);
+    //console.log(graph);										//pour debugging, prints graph
+
+  //trier les links par source puis par target >> index servant à définir leur courbure respective, pour que les liens ne soient pas les uns au dessus des autres
+  graph.links.sort(function(a,b) {
+      if (a.source > b.source) {return 1;}
+      else if (a.source < b.source) {return -1;}
+      else {
+          if (a.target > b.target) {return 1;}
+          if (a.target < b.target) {return -1;}
+          else {return 0;}
+      }
+  });
+
+  //chaque lien avec plusieurs sources et targets est incrémenté d'un 'linknum'
+  for (var i=0; i<graph.links.length; i++) {
+      if (i != 0 &&
+          graph.links[i].source == graph.links[i-1].source &&
+          graph.links[i].target == graph.links[i-1].target) {
+              graph.links[i].linknum = graph.links[i-1].linknum + 1;
+          }
+      else {graph.links[i].linknum = 1;};
+  };
+
+	var nodeSize = node_maxsize/Math.log(nodesclean.length+2);
+
+  var simulation = d3.forceSimulation()				//paramètres de simulation dynamique, elasticité force rappel etc
+      .force("link", d3.forceLink().id(function(d) { return d.name; }).distance(link_length))
+      .force("charge", d3.forceManyBody().strength(charge))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide([nodeSize + node_repulsion]))
+      .velocityDecay(velocity_decay);
+
+    //créer les fléches pour les liens
+marker = svg.append("svg:defs").selectAll("marker")
+            .data(link_types)      						// Different link/path types can be defined here
+            .enter().append("svg:marker")    			// This section adds in the arrows
+            .attr("id", String)
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", marker_x)
+            .attr("refY", marker_y)
+            .attr("markerWidth", marker_size)
+            .attr("markerHeight", marker_size)
+            .attr("orient", "auto")
+            .append("svg:path")
+            .attr("d", "M0,-3L10,0L0,3")
+            //.style("stroke-width", 20)					// ???
+            .style("fill", "#000")
+            .style("fill-opacity", marker_opacity)
+
+
+    var link = svg.append("g")
+        .attr("class", "links")
+      .selectAll("path")
+      .data(graph.links)
+      .enter().append("path")
+        .attr("class", function(d) { return "link " + d.type; })
+        .attr("marker-end", function(d) { return "url(#" + d.type + ")"; }) //accoler la flèche au lien
+        .style("stroke", function(d) { return link_color(d.type);});
+
+    function linkArc(d) {
+      var dx = d.target.x - d.source.x,										//centre de courbure des liens
+          dy = d.target.y - d.source.y,
+          dr = 4/(d.linknum+1)*(Math.sqrt(dx * dx + dy * dy));				//rayon de courbure des liens
+      return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + d.target.x + "," + d.target.y;
+    }
+
+    var node = svg.append("g")
+          .attr("class", "nodes")
+        .selectAll("circle")
+        .data(graph.nodes)
+        .enter().append("circle")
+          .attr("r", nodeSize)
+          .attr("fill", function(d) { return node_color(d.group); })
+		      .attr('opacity',node_opacity_initial)
+          .style("stroke", "black")
+          .style("stroke-width", "3")
+          .on('mouseenter', function (d, i) {
+            svg.selectAll('circle')
+                .transition()
+                .duration(250)
+                .attr('opacity', function (d, j) {return j == i ? node_opacity_selected : node_opacity_others;});
+            /*svg.selectAll('text')
+                .transition()
+                .duration(250)
+                .attr("display", "inline")
+                .attr('opacity', function (d, j) {return j == i ? 1 : 1;});*/
+            })
+          .on('mouseout', function (d, i) {
+            svg.selectAll('circle')
+                .transition()
+                .duration(250)
+                .attr('opacity', function (d, j) {return j == i ? node_opacity_initial : node_opacity_initial;});
+            /*svg.selectAll('text')
+                .transition()
+                .duration(250)
+                .attr("display", "none");*/
+                //.attr('opacity', function (d, j) {return j == i ? 1 : 1;});
+            })
+
+          .call(d3.drag()
+              .on("start", dragstarted)
+              .on("drag", dragged)
+              .on("end", dragended));
+
+    /*  var links_text = svg.selectAll()
+           .data(graph.links)
+           .enter()
+           .append("text")
+           .attr("class", "name")
+           .attr("text-anchor", "middle")
+           .style("font", "12px geneva")
+           .style("fill", function(d) { return link_color(d.type); })
+           .text(function(d) {return (d.name)});*/
+
+	  //console.log(links_text)
+
+      var nodes_text = svg.selectAll()
+           .data(graph.nodes)
+           .enter()
+           .append("text")
+           .attr("class", "name")
+           .attr("text-anchor", "middle")
+           .style("font", "15px geneva")
+           .style("fill", function(d) { return node_color(d.group); })
+		   /*.attr('opacity',1)
+           .style("stroke", function(d) { return node_color(d.group); })
+           .on('mouseenter', function (d, i) {
+             svg.selectAll('circle')
+                 .transition()
+                 .duration(250)
+                 .attr('opacity', function (d, j) {return j == i ? node_opacity_others : 1;});
+             svg.selectAll('text')
+                 .transition()
+                 .duration(250)
+                 .attr("display", "inline")
+                 .attr('opacity', function (d, j) {return j == i ? 1 : 1;});
+             })
+           .on('mouseout', function (d, i) {
+             svg.selectAll('circle')
+                 .transition()
+                 .duration(250)
+                 .attr('opacity', function (d, j) {return j == i ? 1 : 1;});
+             svg.selectAll('text')
+                 .transition()
+                 .duration(250)
+                 .attr("display", "none")
+                 //.attr('opacity', function (d, j) {return j == i ? 1 : 1;});
+             })*/
+           .text(function(d) {return (d.name)});
+
+  simulation.nodes(graph.nodes)
+            .on("tick", ticked);
+
+  simulation.force("link")
+            .links(graph.links);
+
+  function ticked() {								//itère pour calculer les positions des objets
+    link
+        .attr("d", linkArc);						//essayer d'adapter pour que les arcs ne sortent pas
+    node
+        .attr("cx", function(d) { return d.x = Math.max(radius, Math.min(width - radius, d.x)); })
+        .attr("cy", function(d) { return d.y = Math.max(radius, Math.min(height - radius, d.y)); });
+
+    nodes_text
+        .attr("x", function(d) {return d.x + nodetext_shift})
+        .attr("y", function(d) {return d.y + nodetext_shift});
+
+    /*links_text
+        .attr("x", function(d) {return 0.5*(d.target.x + d.source.x)})
+        .attr("y", function(d) {return 0.5*(d.target.y + d.source.y)});*/
+
+		}
+
+  function dragstarted(d) {							//détails à creuser
+    if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+
+  function dragged(d) {
+    d.fx = d3.event.x;
+    d.fy = d3.event.y;
+  }
+
+  function dragended(d) {
+    if (!d3.event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  }
+
+
+  // Method to create the filter
+  createFilter();
+
+  // Method to create the filter, generate checkbox options on fly
+  function createFilter() {
+    d3.select(".filterContainer").selectAll("span")
+      .data(link_types)
+      .enter()
+      .append("span")
+      .attr("class", "checkbox-container")
+      .append("label")
+      //.style("fill", function(d) { return link_color(d.type); })
+      .each(function (d) {
+            // create checkbox for each data
+            d3.select(this).append("input")
+              .attr("type", "checkbox")
+              .attr("name", function (d) {
+                  return "chk_" + d;
+               })
+              .attr("checked", true)
+              .on("click", function (d, i) {
+                // register on click event
+				//console.log(d);
+                  var lVisibility = this.checked ? "visible" : "hidden";
+				  //console.log(lVisibility);
+                  filterGraph(d, lVisibility);
+               })
+            d3.select(this).append("span")
+                .text(function (d) {
+                    return d;
+                });
+        });
+  }
+
+
+   // Method to create the filter
+  createFilter2();
+
+  // Method to create the filter, generate checkbox options on fly
+  function createFilter2() {
+    d3.select(".filterContainer2").selectAll("span")
+      .data([""])
+      .enter()
+      .append("span")
+      .attr("class", "checkbox-container")
+      .append("label")
+      .each(function (d) {
+            // create checkbox for each data
+            d3.select(this).append("input")
+              .attr("type", "checkbox")
+              .attr("name", function (d) {
+                  return "chk_" + d;
+               })
+              .attr("checked", true)
+              .on("click", function (d, i) {
+				//console.log(d);
+                // register on click event
+                  var lVisibility = this.checked ? "visible" : "hidden";
+				//console.log(lVisibility);
+                  filterGraph2(d, lVisibility);
+               })
+            d3.select(this).append("span")
+                .text(function (d) {
+                    return d;
+                });
+        });
+  }
+
+    // Method to filter graph
+    function filterGraph(aType, aVisibility) {
+    // change the visibility of the connection link
+		link.style("visibility", function (o) {
+		//console.log(o);
+			var lOriginalVisibility = $(this).css("visibility");
+			//console.log(o.type);
+			//console.log(aType);
+			//console.log(o.type === aType)
+			return o.type === aType ? aVisibility : lOriginalVisibility;
+		});
+
+		/*links_text.style("visibility", function (o) {
+			var lOriginalVisibility = $(this).css("visibility");
+			return o.type === aType ? aVisibility : lOriginalVisibility;
+		});*/
+
+        // change the visibility of the node
+        // if all the links with that node are invisibile, the node should also be invisible
+        // otherwise if any link related to that node is visibile, the node should be visible
+/*
+     node.style("visibility", function (o, i) {
+        var lHideNode = true;
+        link.each(function (d, i) {
+            if (d.source === o || d.target === o) {
+                if ($(this).css("visibility") === "visible") {
+                    lHideNode = false;
+                    // we need show the text for this circle
+                    d3.select(d3.selectAll(".nodes_text")[0][i]).style("visibility", "visible");
+                    return "visible";
+                }
+            }
+        });
+        if (lHideNode) {
+            // we need hide the text for this circle
+            d3.select(d3.selectAll(".nodes_text")[0][i]).style("visibility", "hidden");
+            return "hidden";
+            }
+
+          });
+          */
+    }
+
+    function filterGraph2(aType, aVisibility) {
+		nodes_text.style("visibility", function (o) {
+			//console.log(o);
+			var lOriginalVisibility = $(this).css("visibility");
+			//console.log(o.type);
+			//console.log(aType);
+			//console.log(o.type === aType);
+			return aVisibility;
+		});
+	}
+
+});
+
+});
+
+</script>
