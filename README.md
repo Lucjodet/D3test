@@ -1,5 +1,5 @@
 # D3test
-Experimentation with D3.js to create a forcefield graph with directed link filtereable by type
+Experimentation with D3.js to create a forcefield graph with directed link filterable by type
 
 Get Started - 
 Just launch the .html file in browser to view the data vizualisation. 
